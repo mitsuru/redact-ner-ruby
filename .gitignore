@@ -1,0 +1,33 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+/vendor/
+
+# rspec failure tracking
+.rspec_status
+
+# Rust / cargo
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Compiled native extension
+*.so
+*.dylib
+*.dll
+*.bundle
+
+# rake-compiler artifacts
+/lib/redact_ner/redact_ner.*
+/lib/redact_ner/*.so
+/lib/redact_ner/*.bundle
+/tmp/
+
+# Editor / OS
+.DS_Store
+*.swp

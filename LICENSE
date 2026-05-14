@@ -1,0 +1,23 @@
+Business Source License 1.1
+
+Licensor:             Mitsuru Hayasaka
+Licensed Work:        redact_ner Ruby gem
+                      The Licensed Work is (c) 2026 Mitsuru Hayasaka
+Additional Use Grant: None
+Change Date:          Four years from the date the Licensed Work is published.
+Change License:       GNU General Public License v3.0 or later
+
+For information about alternative licensing arrangements for the Licensed Work,
+please contact the Licensor.
+
+Notice
+
+The Business Source License (this document, or the "License") is not an Open
+Source license. However, the Licensed Work will eventually be made available
+under an Open Source License, as stated in this License.
+
+This Ruby gem links against the redact-ner Rust crate
+(https://crates.io/crates/redact-ner), which is itself licensed under the
+Business Source License 1.1 by Censgate LLC. The same license terms therefore
+apply to this gem. Please review the upstream LICENSE for the complete legal
+text and conditions.
