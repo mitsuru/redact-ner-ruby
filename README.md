@@ -110,6 +110,30 @@ bin/rake compile
 bin/rake test
 ```
 
+## Releasing
+
+For maintainers — to cut a new release:
+
+1. Update `lib/redact_ner/version.rb` and `CHANGELOG.md`. Commit.
+2. Tag the release: `git tag v$(ruby -Ilib -rredact_ner/version -e 'puts RedactNer::VERSION')`
+3. Push: `git push && git push --tags`
+4. Build and ship the gem:
+
+   ```sh
+   bin/rake build              # produces pkg/redact_ner-X.Y.Z.gem
+   gem push pkg/redact_ner-*.gem
+   ```
+
+   The first `gem push` requires a rubygems.org API key (or an OIDC
+   trusted-publisher setup). Two-factor MFA is required by this gem's
+   `rubygems_mfa_required` metadata.
+
+> **Note**: this currently ships a "source" gem only. End users compile
+> the Rust extension on `gem install`. Cross-compiled precompiled gems
+> (per platform) can be added later via
+> [`rb-sys-dock`](https://github.com/oxidize-rb/rb-sys/tree/main/cargo-binstall-rb-sys-dock)
+> and `rake-compiler-dock`.
+
 ## License
 
 Distributed under the Business Source License 1.1, inheriting from the
