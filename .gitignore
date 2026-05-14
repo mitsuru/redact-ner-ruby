@@ -31,3 +31,6 @@ Cargo.lock.bak
 # Editor / OS
 .DS_Store
 *.swp
+
+# Downloaded ONNX models (large binaries — fetch via README instructions)
+/models/
