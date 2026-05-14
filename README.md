@@ -21,8 +21,12 @@ The gem ships a native Rust extension built via
 
 ```sh
 bundle install
-bundle exec rake compile
+bin/rake compile   # or: bundle exec rake compile
 ```
+
+> **Note**: invoke rake via `bin/rake` (a bundler binstub) or `bundle exec
+> rake`. Running plain `rake` will fail because the globally installed rake
+> conflicts with the bundle-locked version.
 
 ### ONNX Runtime
 
@@ -102,8 +106,8 @@ NER model to ONNX. Place the resulting `model.onnx`, `tokenizer.json`, and
 
 ```sh
 bundle install
-bundle exec rake compile
-bundle exec rake test
+bin/rake compile
+bin/rake test
 ```
 
 ## License
