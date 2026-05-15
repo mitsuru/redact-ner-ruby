@@ -10,11 +10,18 @@ jobs:
   test:
     name: Ruby ${{ matrix.ruby }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ruby: ["3.2", "3.3"]
+        ruby: ["3.2", "3.3", "3.4"]
+        include:
+          # Ruby 4.0 is not generally available yet; mark as experimental
+          # so the matrix stays green while we track upcoming releases.
+          - os: ubuntu-latest
+            ruby: "4.0"
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
