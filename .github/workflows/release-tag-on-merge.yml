@@ -16,6 +16,19 @@ jobs:
        startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
+      # Fail loud if RELEASE_PAT is missing/expired/renamed. Without this, an
+      # empty secret makes checkout fall back to GITHUB_TOKEN; the tag still
+      # pushes (permissions: contents: write) but release.yml never fires — a
+      # silent, months-latent release stall. See Task 7.
+      - name: Verify RELEASE_PAT is configured
+        env:
+          PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "::error::RELEASE_PAT is empty/missing — tag would push via GITHUB_TOKEN and release.yml would NOT trigger. See Task 7."
+            exit 1
+          fi
+
       # IMPORTANT: a tag pushed with the default GITHUB_TOKEN does NOT trigger
       # release.yml (GitHub blocks workflow runs from GITHUB_TOKEN-created
       # events). The tag MUST be pushed with a PAT so `push: tags: ["v*"]`
