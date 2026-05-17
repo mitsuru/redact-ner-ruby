@@ -180,8 +180,9 @@ jobs:
           c = File.read(path)
           notes = ENV["NOTES"]; ver = ENV["NEXT"]; date = ENV["DATE"]; repo = ENV["REPO"]
           section = "## [#{ver}] - #{date}\n\n#{notes}\n"
-          # Insert the new section directly after the "## [Unreleased]" line (keep Unreleased empty).
-          c = c.sub(/(## \[Unreleased\]\n)/, "\\1\n#{section}\n")
+          # Insert the new section after "## [Unreleased]" (keep Unreleased empty).
+          # Block form: replacement string must NOT interpret \1/\& from notes.
+          c = c.sub(/## \[Unreleased\]\n/) { |m| "#{m}\n#{section}\n" }
           # Bottom link refs.
           c = c.sub(%r{^\[Unreleased\]:.*$}, "[Unreleased]: https://github.com/#{repo}/compare/v#{ver}...HEAD")
           c = c.sub(/^(\[#{Regexp.escape(ver)}\]:.*\n)?\z/, "")  # no-op safety
@@ -212,10 +213,14 @@ jobs:
       - name: Create draft GitHub Release (no tag yet)
         env:
           GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ steps.notes.outputs.body }}
+          TAG: ${{ steps.ver.outputs.tag }}
         run: |
-          tag="${{ steps.ver.outputs.tag }}"
-          printf '%s\n' "${{ steps.notes.outputs.body }}" > /tmp/notes.md
-          gh release create "$tag" --draft --target main --title "$tag" --notes-file /tmp/notes.md
+          # NOTES via env (NOT ${{ }} in the script) — generated notes can
+          # contain quotes/backticks/$ that would break shell interpolation.
+          printf '%s\n' "$NOTES" > /tmp/notes.md
+          gh release create "$TAG" --draft --target main --title "$TAG" --notes-file /tmp/notes.md
+          tag="$TAG"
           # A draft release must NOT create the git tag.
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
             echo "ERROR: draft release created the tag prematurely"; exit 1
@@ -263,14 +268,19 @@ jobs:
        startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
+      # IMPORTANT: a tag pushed with the default GITHUB_TOKEN does NOT trigger
+      # release.yml (GitHub blocks workflow runs from GITHUB_TOKEN-created
+      # events). The tag MUST be pushed with a PAT so `push: tags: ["v*"]`
+      # fires. RELEASE_PAT is a fine-grained PAT (contents:write) — see Task 7.
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
-      - name: Create and push tag
+      - name: Create and push tag (PAT so release.yml triggers)
         run: |
           ver=$(ruby -r ./lib/redact_ner/version -e 'print RedactNer::VERSION')
           tag="v$ver"
@@ -384,6 +394,30 @@ git commit -m "Document automated release flow in README"
 
 ---
 
+## Task 7: User prerequisite — `RELEASE_PAT` secret (do before Task 6's real-release leg)
+
+**This is a manual user action; it cannot be done in code. Block the real
+release on it.** Reason: a tag pushed by the default `GITHUB_TOKEN` does NOT
+trigger `release.yml` (GitHub suppresses workflow runs from
+`GITHUB_TOKEN`-created events). `release-tag-on-merge.yml` therefore pushes the
+tag with a PAT.
+
+Instruct the user to:
+1. GitHub → Settings → Developer settings → **Fine-grained personal access
+   tokens** → Generate new token. Resource owner = `mitsuru`, repository =
+   `redact-ner-ruby` only. Repository permissions: **Contents: Read and write**
+   (nothing else). Short expiry is fine.
+2. Repo → Settings → Secrets and variables → Actions → **New repository
+   secret**: name exactly `RELEASE_PAT`, value = the token.
+
+**Step 1: Confirm with the user** that `RELEASE_PAT` exists before merging any
+Release PR (Task 6 Step 5). The dry-run (Task 6 Steps 2–4, no merge) does NOT
+need it.
+
+No commit.
+
+---
+
 ## Task 6: End-to-end dry-run verification (NO publish)
 
 **Files:** none (verification only).
@@ -419,7 +453,7 @@ Expected: only `lib/redact_ner/version.rb` (→ 0.1.2) and `CHANGELOG.md` (new `
 
 **Step 5: Decide — real release or abort the dry-run**
 
-- To complete a real 0.1.2 release: merge the PR (auto-tag → `release.yml` → approve `rubygems` env) and verify per the existing release runbook.
+- To complete a real 0.1.2 release: **first ensure Task 7 (`RELEASE_PAT`) is done**, then merge the PR. Verify the chain: `release-tag-on-merge` runs → a `v0.1.2` tag appears on origin → a NEW `release.yml` run starts from that tag (if NO release.yml run appears, `RELEASE_PAT` is missing/misconfigured — the GITHUB_TOKEN suppression bit). Then approve the `rubygems` env and verify per the existing release runbook.
 - To abort the dry-run: `gh pr close <n> --delete-branch`; `gh release delete v0.1.2 --yes`. Confirm `gh release list` no longer shows `v0.1.2`.
 
 No commit (verification only).
@@ -429,6 +463,8 @@ No commit (verification only).
 ## Notes for the executor
 
 - Do NOT push a `v*` tag manually during development — it triggers the real publish (`release.yml`).
+- **GITHUB_TOKEN tag gotcha:** the auto-tag in `release-tag-on-merge.yml` MUST use `secrets.RELEASE_PAT` (Task 3 + Task 7). A tag pushed by the default `GITHUB_TOKEN` will NOT start `release.yml` — the whole chain silently stalls with a tag but no publish. Verify in Task 6 Step 5 that merging produces a new `release.yml` run.
+- Workflows triggered by `pull_request` (release-tag-on-merge) read the workflow file from the PR **base** (`main`) — so it must be merged to `main` (Task 6 Step 1) before it can fire.
 - `release-prep` creating the **draft** release must NOT create the git tag; Step 6.3 explicitly asserts this. If a tag appears, stop and fix (likely a `gh release create` flag).
 - The generate-notes API works for a not-yet-existing tag (`tag_name` + `target_commitish=main`). `previous_tag_name` omitted when no prior `v*` tag.
 - Keep YAGNI: no explicit-version input, no prerelease/build metadata, no Conventional Commits, no CHANGELOG auto-categorization (all out of scope per the issue design).
