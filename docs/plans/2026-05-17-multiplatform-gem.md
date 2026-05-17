@@ -124,10 +124,14 @@ RbSys::ExtensionTask.new("redact_ner", GEMSPEC) do |ext|
 end
 ```
 
-**Step 3: Verify rake tasks are generated**
+**Step 3: Verify cross-compile rake tasks are registered**
 
-Run: `bundle exec rake -T 2>/dev/null | grep -E 'native|gem:' | head -10`
-Expected: `native:*` and `gem:*` tasks listed for the declared platforms (e.g. `gem:x86_64-linux`).
+`rb_sys`/`rake-compiler` 1.3.x exposes cross-compile targets under the
+`native:*` namespace (NOT a `gem:*` namespace) and gives them no description,
+so they are hidden from `rake -T` — use `rake -AT`.
+
+Run: `bundle exec rake -AT 2>/dev/null | grep -E '^rake (cross|native(:|$)|native:redact_ner:)' | head -10`
+Expected: at least `rake cross`, `rake native`, and `rake native:redact_ner:x86_64-linux` are listed (proof `ext.cross_compile = true` + `ext.cross_platform` took effect; non-host platforms expand at invocation time with `RUBY_CC_VERSION`/rb-sys-dock).
 
 **Step 4: Verify gemspec still loads and builds**
 
