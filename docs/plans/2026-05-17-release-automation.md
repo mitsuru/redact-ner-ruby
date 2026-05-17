@@ -95,6 +95,16 @@ git commit -m "Add version-bump helper with tests"
 
 ## Task 2: `release-prep.yml` — bump + CHANGELOG + Release PR + draft Release
 
+> **Superseded (auth) by `redact-ner-ruby-a2c` / `docs/plans/2026-05-17-release-app-token.md`:**
+> the live `release-prep.yml` / `release-tag-on-merge.yml` no longer use
+> `GITHUB_TOKEN`/`RELEASE_PAT` or apply a `release` label. They mint a
+> dedicated GitHub App installation token (`actions/create-github-app-token@v1`,
+> secrets `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`), use an App-bot git
+> identity, and `release-tag-on-merge` triggers on the `release/v*` head ref.
+> The embedded YAML below reflects this plan's original (PR #1) implementation
+> and is kept for history; trust the actual workflow files + the a2c plan for
+> the current auth/label behavior.
+
 **Files:**
 - Create: `.github/workflows/release-prep.yml`
 

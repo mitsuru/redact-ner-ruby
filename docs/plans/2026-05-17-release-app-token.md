@@ -206,8 +206,8 @@ Expected: `12 runs, ... 0 failures` (no Ruby code changed; if the native ext isn
 
 **Step 3: No RELEASE_PAT anywhere**
 
-Run: `grep -rn 'RELEASE_PAT' .github docs README.md || echo "RELEASE_PAT fully gone"`
-Expected: `RELEASE_PAT fully gone`.
+Run: `grep -rn 'RELEASE_PAT' .github docs README.md --exclude='2026-05-17-release-app-token.md'`
+Expected: NO output (this plan doc itself is excluded — its subject *is* RELEASE_PAT removal, so it legitimately names it; the meaningful targets are `.github/workflows/*`, the rvk plan `2026-05-17-release-automation.md`, and `README.md`, all of which must be clean).
 
 **Step 4: release.yml untouched**
 
