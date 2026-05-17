@@ -43,3 +43,8 @@ Cargo.lock.bak
 
 # Downloaded ONNX models (large binaries — fetch via README instructions)
 /models/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

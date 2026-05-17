@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "redact_ner_ruby",
+  "project_id": "451fed51-b7af-4acd-a2c2-c43c5f6ed52d"
+}
