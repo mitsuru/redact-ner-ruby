@@ -13,5 +13,6 @@ class TestNextVersion < Minitest::Test
   def test_invalid_bump
     out = `ruby #{File.expand_path("../script/next_version.rb", __dir__)} 0.1.1 nope 2>&1`
     refute_equal 0, $?.exitstatus
+    assert_match(/invalid bump/, out)
   end
 end
