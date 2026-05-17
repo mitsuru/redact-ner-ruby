@@ -137,7 +137,11 @@ jobs:
           shopt -s nullglob
           for g in dist/*.gem; do
             echo "Pushing $g"
-            gem push "$g"
+            if ! out=$(gem push "$g" 2>&1); then
+              echo "$out"
+              echo "$out" | grep -q "has already been pushed" || exit 1
+              echo "Already pushed, skipping: $g"
+            fi
           done
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
