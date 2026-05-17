@@ -226,8 +226,11 @@ jobs:
           NOTES: ${{ steps.notes.outputs.body }}
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
-          # NOTES via env (NOT ${{ }} in the script) — generated notes can
-          # contain quotes/backticks/$ that would break shell interpolation.
+          # NOTES is passed via env, not interpolated into the script —
+          # generated notes can contain quotes/backticks/$ that would
+          # break shell interpolation. (Do not write a GitHub Actions
+          # expression literal in this run block: it is parsed even in
+          # shell comments and an empty one fails the workflow at startup.)
           printf '%s\n' "$NOTES" > /tmp/notes.md
           gh release create "$TAG" --draft --target main --title "$TAG" --notes-file /tmp/notes.md
           tag="$TAG"
