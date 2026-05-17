@@ -11,7 +11,15 @@ as fallback for uncovered platforms / future Ruby versions.
 
 ## Scope
 
-### Distribution artifacts (8 gems total)
+### Distribution artifacts (6 gems total)
+
+> **Revised (option B, 2026-05-17):** macOS dropped from precompiled. Vendored
+> OpenSSL cannot cross-build for `*-darwin` via `rb-sys-dock`/osxcross
+> (`ranlib: libcrypto.a.new: malformed archive`), proven version- and
+> image-independent. `openssl-sys` is unavoidably forced by `redact-ner` 0.8.3 +
+> `ort` 2.0.0-rc.12 defaults (cannot be dropped via Cargo feature unification).
+> macOS users install the source gem (native Apple cctools toolchain does not
+> hit the osxcross bug).
 
 Precompiled platform gems (each fat-packs Ruby 3.2 / 3.3 / 3.4 `.so`; Ruby 4.0
 is excluded from precompiled gems for 0.1.0 — see "Ruby 4.0" below):
@@ -20,12 +28,11 @@ is excluded from precompiled gems for 0.1.0 — see "Ruby 4.0" below):
 - `aarch64-linux`
 - `x86_64-linux-musl`
 - `aarch64-linux-musl`
-- `x86_64-darwin`
-- `arm64-darwin`
 - `x64-mingw-ucrt`
 
 Plus 1 platform-generic **source gem** (built from source via the Rust
-toolchain) for any platform / Ruby version not covered above.
+toolchain) for any platform / Ruby version not covered above — notably
+**macOS** (`*-darwin`), which needs a Rust toolchain + Xcode CLT at install.
 
 ### Out of scope (YAGNI)
 
@@ -93,16 +100,16 @@ New `.github/workflows/release.yml`; keep existing `ci.yml` (tests) unchanged.
 
 - Trigger: `push: tags: ['v*']` + `workflow_dispatch`.
 - Jobs:
-  1. `cross-gem` (matrix, 7 platforms in parallel) — `oxidize-rb/actions/cross-gem@v1`,
+  1. `cross-gem` (matrix, 5 platforms in parallel) — `oxidize-rb/actions/cross-gem@v1`,
      `ruby-versions: "3.2,3.3,3.4"`, builds via `rb-sys-dock` with vendored
      OpenSSL; uploads `.gem` artifacts.
   2. `source-gem` — `gem build redact_ner.gemspec`; uploads artifact.
-  3. `smoke-native` + `smoke-emulated` — full 7-platform load gate (see
+  3. `smoke-native` + `smoke-emulated` — full 5-platform load gate (see
      Verification).
   4. `publish` (needs all above) — download all artifacts, **RubyGems Trusted
      Publishing** via OIDC (`rubygems/configure-rubygems-credentials` + `gem
      push`), `permissions: id-token: write`, behind a protected GitHub
-     Environment `rubygems`, push all 8 gems, create a GitHub Release with
+     Environment `rubygems`, push all 6 gems, create a GitHub Release with
      `.gem` assets and generated notes.
 
 ### Ruby 4.0
@@ -131,7 +138,7 @@ post-GA follow-up.
 2. **Install/smoke (CI, before publish — mandatory gate):** for each precompiled
    gem, `gem install` → `require "redact_ner"` →
    `RedactNer::Recognizer.respond_to?(:from_file)`. Linux musl/aarch64 via
-   QEMU emulation; macOS/Windows on native runners. Confirm `from_file` returns
+   QEMU emulation; Windows on a native runner (no macOS — source gem only). Confirm `from_file` returns
    an object with `ORT_DYLIB_PATH` unset (README graceful-fallback contract).
    Real inference is out of scope.
 3. **Source gem fallback:** install source gem with Rust toolchain present;
@@ -149,12 +156,12 @@ path covered by load smoke test only; no duplication.
 2. gemspec `required_ruby_version` upper bound; Rakefile cross-platform decl.
 3. Local `rb-sys-dock` cross-build of one platform (e.g. `x86_64-linux`).
 4. Add `release.yml` with publish step disabled (artifact build only).
-5. `workflow_dispatch` run: all 7 platforms + source build & load smoke green.
+5. `workflow_dispatch` run: all 5 platforms + source build & load smoke green.
 6. User creates GitHub Environment `rubygems` and registers the pending
    Trusted Publisher (reserve `redact_ner` + bind repo/workflow/environment).
 7. Enable publish step in `release.yml`.
 8. Append multi-platform note to CHANGELOG; re-create `v0.1.0` tag and push →
-   workflow auto-publishes all gems.
+   workflow auto-publishes all 6 gems.
 9. Post-release `gem install` verification on representative platforms.
 
 Version note: discard/recreate the local `Release v0.1.0` commit + tag; ship

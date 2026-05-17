@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Distribute precompiled native-extension gems for 7 platforms (plus a source fallback) so users can `gem install redact_ner` without a Rust toolchain, published automatically via GitHub Actions + RubyGems Trusted Publishing.
+**Goal:** Distribute precompiled native-extension gems for 5 platforms (plus a source fallback) so users can `gem install redact_ner` without a Rust toolchain, published automatically via GitHub Actions + RubyGems Trusted Publishing.
 
 **Architecture:** The gem is a Rust extension built with `rb-sys` + `magnus`. We add a `vendored` OpenSSL build to eliminate the transitive system-OpenSSL dependency pulled by `ort`'s default features, declare cross-compile targets in the Rakefile, and add a tag-triggered `release.yml` that cross-builds via `oxidize-rb/actions/cross-gem` (rb-sys-dock) and publishes through OIDC behind a protected GitHub Environment. ONNX Runtime is resolved at runtime (`load-dynamic`), so it is never bundled.
 
@@ -10,9 +10,31 @@
 
 **Design reference:** `docs/plans/2026-05-17-multiplatform-gem-design.md`
 
-**Target platforms:** `x86_64-linux`, `aarch64-linux`, `x86_64-linux-musl`, `aarch64-linux-musl`, `x86_64-darwin`, `arm64-darwin`, `x64-mingw-ucrt`
+**Target platforms (precompiled):** `x86_64-linux`, `aarch64-linux`, `x86_64-linux-musl`, `aarch64-linux-musl`, `x64-mingw-ucrt` — **macOS (`*-darwin`) is source-gem only** (see Revision banner)
 **Ruby ABIs per precompiled gem (initial release):** 3.2, 3.3, 3.4
 **Ruby 4.0:** intentionally NOT in precompiled gems for 0.1.0 (cross-gem `ruby-versions` is a single comma-joined list with no per-ABI failure isolation; 4.0 is not yet GA). 4.0 users fall back to the source gem; precompiled 4.0 is a post-GA follow-up.
+
+> ## REVISION (option B — 2026-05-17, post first CI round)
+>
+> First CI round: Linux×4 + Windows cross-builds **passed**; both `*-darwin`
+> **failed** and `source-gem` **failed**. Root causes (proven, not guessed):
+> - **source-gem:** `pkg/` is gitignored/absent on fresh checkout; `gem build
+>   -o pkg/...` ENOENT. Fix: `mkdir -p pkg &&` before the build.
+> - **darwin:** vendored `openssl-src` cannot cross-build via rb-sys-dock
+>   /osxcross (`ranlib: libcrypto.a.new: malformed archive`). Proven
+>   **version-independent** (openssl-src 300.6.0 & 300.4.2 both fail) and
+>   **image-independent** (rb-sys-dock 0.9.128 & 0.9.127 both fail). `openssl-sys`
+>   is unavoidably forced by `redact-ner` 0.8.3 + `ort` 2.0.0-rc.12 defaults
+>   (Cargo feature unification is additive; 0.8.3 is latest).
+>
+> **Decision: option B.** Precompiled = 5 platforms (Linux×4 + Windows). macOS
+> ships via the **source gem** only (native Apple cctools toolchain does not hit
+> the osxcross bug; needs Rust + Xcode CLT at install). The Task-1 experimental
+> `openssl-src = "=300.4.2"` pin is **reverted** (it did not help; restores the
+> exact config that already passed CI for the 5 kept platforms). Wherever this
+> plan still says 7 platforms / lists `*-darwin` / `macos-13` / `macos-14`,
+> option B supersedes it. `vendored` OpenSSL is **kept** (still needed by the 5
+> cross targets and the macOS source build).
 
 ---
 
@@ -112,8 +134,6 @@ CROSS_PLATFORMS = %w[
   aarch64-linux
   x86_64-linux-musl
   aarch64-linux-musl
-  x86_64-darwin
-  arm64-darwin
   x64-mingw-ucrt
 ].freeze
 
@@ -193,7 +213,7 @@ No commit (verification only; `pkg/` is gitignored).
 ## Task 4: Add release.yml with publishing disabled (build + full smoke)
 
 Wire the workflow but keep publishing off until CI is proven green. The smoke
-gate covers all 7 platforms per the design (native GH runners where possible,
+gate covers all 5 platforms per the design (native GH runners where possible,
 QEMU emulation for aarch64).
 
 **Files:**
@@ -223,8 +243,6 @@ jobs:
           - aarch64-linux
           - x86_64-linux-musl
           - aarch64-linux-musl
-          - x86_64-darwin
-          - arm64-darwin
           - x64-mingw-ucrt
     steps:
       - uses: actions/checkout@v4
@@ -251,7 +269,7 @@ jobs:
           ruby-version: "3.4"
           rustup-toolchain: stable
           bundler-cache: true
-      - run: gem build redact_ner.gemspec -o pkg/redact_ner-source.gem
+      - run: mkdir -p pkg && gem build redact_ner.gemspec -o pkg/redact_ner-source.gem
       - uses: actions/upload-artifact@v4
         with:
           name: source-gem
@@ -268,10 +286,6 @@ jobs:
         include:
           - platform: x86_64-linux
             os: ubuntu-latest
-          - platform: x86_64-darwin
-            os: macos-13
-          - platform: arm64-darwin
-            os: macos-14
           - platform: x64-mingw-ucrt
             os: windows-latest
     runs-on: ${{ matrix.os }}
@@ -375,12 +389,12 @@ Expected: push succeeds; the push event starts a `release.yml` run.
 **Step 3: Watch the run to completion**
 
 Run: `gh run watch "$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status 2>&1 | tail -25`
-Expected: all `cross-gem` (7), `source-gem`, `smoke-native` (4), and `smoke-emulated` (3) jobs succeed. Wall time ~30–60 min. If a vendored-OpenSSL cross-build fails for a non-x86_64-linux target (only x86_64-linux was validated locally in Task 3), debug per superpowers:systematic-debugging and iterate (commit fix → push → re-watch). Do NOT weaken the smoke gate to go green.
+Expected: all `cross-gem` (5), `source-gem`, `smoke-native` (2), and `smoke-emulated` (3) jobs succeed. Wall time ~30–60 min. If a vendored-OpenSSL cross-build fails for a non-x86_64-linux target (only x86_64-linux was validated locally in Task 3), debug per superpowers:systematic-debugging and iterate (commit fix → push → re-watch). Do NOT weaken the smoke gate to go green.
 
 **Step 4: Confirm artifacts uploaded**
 
 Run: `gh run view "$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --json jobs -q '[.jobs[].name]'`
-Expected: 7 cross jobs + source-gem + 4 smoke-native + 3 smoke-emulated, all listed.
+Expected: 5 cross jobs + source-gem + 2 smoke-native + 3 smoke-emulated, all listed.
 
 **Step 5: Remove the temporary trigger (HARD completion condition)**
 
@@ -558,7 +572,7 @@ approval if a reviewer was configured in 7a).
 **Step 5: Verify on RubyGems**
 
 Run: `sleep 30; curl -s https://rubygems.org/api/v1/versions/redact_ner.json | ruby -rjson -e 'puts JSON.parse(STDIN.read).map { |v| v["platform"] }.sort.uniq'`
-Expected: lists `ruby` plus the 7 platform strings.
+Expected: lists `ruby` plus the 5 platform strings.
 
 **Step 6: Post-release manual verification**
 
