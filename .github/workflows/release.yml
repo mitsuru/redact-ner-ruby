@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: ["feature/multiplatform-gem"]   # TEMPORARY — remove before Task 6
   workflow_dispatch:
 
 jobs:
