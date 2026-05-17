@@ -16,39 +16,38 @@ jobs:
        startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
-      # Fail loud if RELEASE_PAT is missing/expired/renamed. Without this, an
-      # empty secret makes checkout fall back to GITHUB_TOKEN; the tag still
-      # pushes (permissions: contents: write) but release.yml never fires — a
-      # silent, months-latent release stall. See Task 7.
-      - name: Verify RELEASE_PAT is configured
-        env:
-          PAT: ${{ secrets.RELEASE_PAT }}
-        run: |
-          if [ -z "$PAT" ]; then
-            echo "::error::RELEASE_PAT is empty/missing — tag would push via GITHUB_TOKEN and release.yml would NOT trigger. See Task 7."
-            exit 1
-          fi
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       # IMPORTANT: a tag pushed with the default GITHUB_TOKEN does NOT trigger
       # release.yml (GitHub blocks workflow runs from GITHUB_TOKEN-created
-      # events). The tag MUST be pushed with a PAT so `push: tags: ["v*"]`
-      # fires. RELEASE_PAT is a fine-grained PAT (contents:write) — see Task 7.
+      # events). The tag MUST be pushed with the dedicated GitHub App
+      # installation token so `push: tags: ["v*"]` fires in release.yml.
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
-      - name: Create and push tag (PAT so release.yml triggers)
+      - name: Configure git identity as the App bot
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          bot_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+      - name: Create and push tag
         run: |
           ver=$(ruby -r ./lib/redact_ner/version -e 'print RedactNer::VERSION')
           tag="v$ver"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "tag $tag already exists; nothing to do"; exit 0
           fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$tag" -m "redact_ner $ver"
           git push origin "$tag"
