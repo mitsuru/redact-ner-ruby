@@ -143,8 +143,15 @@ jobs:
               echo "Already pushed, skipping: $g"
             fi
           done
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.gem
-          generate_release_notes: true
+      - name: Publish GitHub Release (un-draft existing draft + attach gems)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.gem --clobber
+            gh release edit "$tag" --draft=false --latest
+          else
+            # Fallback: tag pushed without release-prep (manual release).
+            gh release create "$tag" dist/*.gem --title "$tag" --generate-notes --latest
+          fi
