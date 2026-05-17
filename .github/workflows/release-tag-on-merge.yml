@@ -1,0 +1,41 @@
+name: Release Tag on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      (contains(github.event.pull_request.labels.*.name, 'release') ||
+       startsWith(github.event.pull_request.head.ref, 'release/v'))
+    runs-on: ubuntu-latest
+    steps:
+      # IMPORTANT: a tag pushed with the default GITHUB_TOKEN does NOT trigger
+      # release.yml (GitHub blocks workflow runs from GITHUB_TOKEN-created
+      # events). The tag MUST be pushed with a PAT so `push: tags: ["v*"]`
+      # fires. RELEASE_PAT is a fine-grained PAT (contents:write) — see Task 7.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - name: Create and push tag (PAT so release.yml triggers)
+        run: |
+          ver=$(ruby -r ./lib/redact_ner/version -e 'print RedactNer::VERSION')
+          tag="v$ver"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "tag $tag already exists; nothing to do"; exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "redact_ner $ver"
+          git push origin "$tag"
