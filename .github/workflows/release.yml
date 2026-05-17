@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  cross-gem:
+    name: cross ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - x86_64-linux
+          - aarch64-linux
+          - x86_64-linux-musl
+          - aarch64-linux-musl
+          - x86_64-darwin
+          - arm64-darwin
+          - x64-mingw-ucrt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - uses: oxidize-rb/actions/cross-gem@v1
+        id: cross-gem
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: "3.2,3.3,3.4"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: pkg/*-${{ matrix.platform }}.gem
+          if-no-files-found: error
+
+  source-gem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1
+        with:
+          ruby-version: "3.4"
+          rustup-toolchain: stable
+          bundler-cache: true
+      - run: gem build redact_ner.gemspec -o pkg/redact_ner-source.gem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-gem
+          path: pkg/redact_ner-source.gem
+          if-no-files-found: error
+
+  # Native-runner smoke: install the precompiled gem and confirm it loads
+  # with NO Rust toolchain present. (Setting up Rust is simply omitted.)
+  smoke-native:
+    needs: cross-gem
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x86_64-linux
+            os: ubuntu-latest
+          - platform: x86_64-darwin
+            os: macos-13
+          - platform: arm64-darwin
+            os: macos-14
+          - platform: x64-mingw-ucrt
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: pkg
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - name: Install and load (no Rust toolchain)
+        shell: bash
+        run: |
+          gem install pkg/*.gem
+          ruby -e 'require "redact_ner"; raise "load failed" unless RedactNer::Recognizer.respond_to?(:from_file); puts "ok #{RedactNer::VERSION}"'
+
+  # Emulated smoke for musl + aarch64. musl runs in an Alpine container;
+  # aarch64 runs an arm64 container under QEMU/binfmt. Verify the binfmt +
+  # container recipe against current oxidize-rb examples while implementing.
+  smoke-emulated:
+    needs: cross-gem
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x86_64-linux-musl
+            image: ruby:3.4-alpine
+            arch: amd64
+          - platform: aarch64-linux
+            image: ruby:3.4-slim
+            arch: arm64
+          - platform: aarch64-linux-musl
+            image: ruby:3.4-alpine
+            arch: arm64
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: pkg
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Install and load in ${{ matrix.arch }} ${{ matrix.image }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "$PWD/pkg:/pkg" -w /pkg ${{ matrix.image }} sh -c '
+              gem install ./*.gem &&
+              ruby -e '\''require "redact_ner"; raise "load failed" unless RedactNer::Recognizer.respond_to?(:from_file); puts "ok #{RedactNer::VERSION}"'\'''
+
+  # publish: intentionally NOT defined yet. Added in Task 6 after CI is green
+  # and the RubyGems pending Trusted Publisher + GitHub Environment exist.
