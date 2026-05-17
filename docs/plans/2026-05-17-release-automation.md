@@ -215,8 +215,7 @@ jobs:
           git add lib/redact_ner/version.rb CHANGELOG.md
           git commit -m "Release $tag"
           git push -u origin "release/$tag"
-          gh label create release --color FBCA04 --description "Release PR" 2>/dev/null || true
-          gh pr create --base main --head "release/$tag" --label release \
+          gh pr create --base main --head "release/$tag" \
             --title "Release $tag" \
             --body "Automated release prep for **$tag**. Review the version bump, CHANGELOG, and the draft GitHub Release notes. Merging this PR auto-tags \`$tag\` and triggers publish."
 
@@ -281,40 +280,43 @@ jobs:
        startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
-      # Fail loud if RELEASE_PAT is missing/expired/renamed. Without this, an
-      # empty secret makes checkout fall back to GITHUB_TOKEN; the tag still
+      # Mint a short-lived installation token from the dedicated GitHub App.
+      # Without this, checkout falls back to GITHUB_TOKEN; the tag still
       # pushes (permissions: contents: write) but release.yml never fires — a
       # silent, months-latent release stall. See Task 7.
-      - name: Verify RELEASE_PAT is configured
-        env:
-          PAT: ${{ secrets.RELEASE_PAT }}
-        run: |
-          if [ -z "$PAT" ]; then
-            echo "::error::RELEASE_PAT is empty/missing — tag would push via GITHUB_TOKEN and release.yml would NOT trigger. See Task 7."
-            exit 1
-          fi
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       # IMPORTANT: a tag pushed with the default GITHUB_TOKEN does NOT trigger
       # release.yml (GitHub blocks workflow runs from GITHUB_TOKEN-created
-      # events). The tag MUST be pushed with a PAT so `push: tags: ["v*"]`
-      # fires. RELEASE_PAT is a fine-grained PAT (contents:write) — see Task 7.
+      # events). The tag MUST be pushed with the dedicated GitHub App
+      # installation token so `push: tags: ["v*"]` fires in release.yml.
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
-      - name: Create and push tag (PAT so release.yml triggers)
+      - name: Configure git identity as the App bot
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          bot_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+      - name: Create and push tag
         run: |
           ver=$(ruby -r ./lib/redact_ner/version -e 'print RedactNer::VERSION')
           tag="v$ver"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "tag $tag already exists; nothing to do"; exit 0
           fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$tag" -m "redact_ner $ver"
           git push origin "$tag"
 ```
@@ -420,27 +422,29 @@ git commit -m "Document automated release flow in README"
 
 ---
 
-## Task 7: User prerequisite — `RELEASE_PAT` secret (do before Task 6's real-release leg)
+## Task 7: User prerequisite — dedicated GitHub App (do before Task 6's real-release leg)
 
-**This is a manual user action; it cannot be done in code. Block the real
-release on it.** Reason: a tag pushed by the default `GITHUB_TOKEN` does NOT
-trigger `release.yml` (GitHub suppresses workflow runs from
-`GITHUB_TOKEN`-created events). `release-tag-on-merge.yml` therefore pushes the
-tag with a PAT.
+**Manual user action; cannot be done in code.** A tag pushed by the default
+`GITHUB_TOKEN` does NOT trigger `release.yml`. The release workflows mint a
+short-lived token from a dedicated GitHub App instead.
 
-Instruct the user to:
-1. GitHub → Settings → Developer settings → **Fine-grained personal access
-   tokens** → Generate new token. Resource owner = `mitsuru`, repository =
-   `redact-ner-ruby` only. Repository permissions: **Contents: Read and write**
-   (nothing else). Short expiry is fine.
-2. Repo → Settings → Secrets and variables → Actions → **New repository
-   secret**: name exactly `RELEASE_PAT`, value = the token.
+1. GitHub → Settings → Developer settings → **GitHub Apps → New GitHub App**.
+   Name e.g. `redact-ner-ruby-release-bot`; Homepage URL anything; **uncheck
+   Webhook → Active**. Repository permissions: **Contents: Read and write**,
+   **Pull requests: Read and write** (everything else: No access). Create.
+2. Note the **App ID**. Under "Private keys" → **Generate a private key**
+   (downloads a `.pem`).
+3. **Install App** → only `mitsuru/redact-ner-ruby`.
+4. After install, confirm the App's bot user resolves:
+   `gh api "/users/<app-slug>[bot]" --jq .id` returns a numeric id
+   (`<app-slug>` = the App's lowercased URL slug). If it 404s, wait a minute
+   and retry.
+5. Repo → Settings → Secrets and variables → Actions → add:
+   - `RELEASE_APP_ID` = the App ID
+   - `RELEASE_APP_PRIVATE_KEY` = the full `.pem` contents
 
-**Step 1: Confirm with the user** that `RELEASE_PAT` exists before merging any
-Release PR (Task 6 Step 5). The dry-run (Task 6 Steps 2–4, no merge) does NOT
-need it.
-
-No commit.
+Confirm both secrets exist (and the bot-user check passes) before merging any
+Release PR.
 
 ---
 
@@ -465,21 +469,21 @@ Expected: success.
 
 Run:
 ```bash
-gh pr list --label release --json number,headRefName,title
+gh pr list --search "head:release/v" --json number,headRefName,title
 gh release list | grep -i 'v0\.1\.2'        # draft present
 git ls-remote --tags origin | grep v0.1.2 || echo "NO TAG (correct)"
 curl -s https://rubygems.org/api/v1/versions/redact_ner.json | ruby -rjson -e 'puts JSON.parse(STDIN.read).map{|v| v["number"]}.uniq.inspect'
 ```
-Expected: a `release/v0.1.2` PR with `release` label; a **draft** release `v0.1.2`; **no `v0.1.2` git tag**; rubygems still shows only `0.1.1` (nothing published).
+Expected: a PR from the `release/v0.1.2` head branch; a **draft** release `v0.1.2`; **no `v0.1.2` git tag**; rubygems still shows only `0.1.1` (nothing published).
 
 **Step 4: Inspect the Release PR diff**
 
-Run: `gh pr diff "$(gh pr list --label release --json number -q '.[0].number')"`
+Run: `gh pr diff "$(gh pr list --search "head:release/v" --json number -q '.[0].number')"`
 Expected: only `lib/redact_ner/version.rb` (→ 0.1.2) and `CHANGELOG.md` (new `## [0.1.2] - <date>` section from generated notes + updated link refs) changed.
 
 **Step 5: Decide — real release or abort the dry-run**
 
-- To complete a real 0.1.2 release: **first ensure Task 7 (`RELEASE_PAT`) is done**, then merge the PR. Verify the chain: `release-tag-on-merge` runs → a `v0.1.2` tag appears on origin → a NEW `release.yml` run starts from that tag (if NO release.yml run appears, `RELEASE_PAT` is missing/misconfigured — the GITHUB_TOKEN suppression bit). Then approve the `rubygems` env and verify per the existing release runbook.
+- To complete a real 0.1.2 release: **first ensure Task 7 (the dedicated GitHub App + `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY` secrets) is done**, then merge the PR. Verify the chain: `release-tag-on-merge` runs → a `v0.1.2` tag appears on origin → a NEW `release.yml` run starts from that tag (if NO release.yml run appears, the GitHub App token is missing/misconfigured — the GITHUB_TOKEN suppression bit). Then approve the `rubygems` env and verify per the existing release runbook.
 - To abort the dry-run: `gh pr close <n> --delete-branch`; `gh release delete v0.1.2 --yes`. Confirm `gh release list` no longer shows `v0.1.2`.
 
 No commit (verification only).
@@ -489,7 +493,7 @@ No commit (verification only).
 ## Notes for the executor
 
 - Do NOT push a `v*` tag manually during development — it triggers the real publish (`release.yml`).
-- **GITHUB_TOKEN tag gotcha:** the auto-tag in `release-tag-on-merge.yml` MUST use `secrets.RELEASE_PAT` (Task 3 + Task 7). A tag pushed by the default `GITHUB_TOKEN` will NOT start `release.yml` — the whole chain silently stalls with a tag but no publish. Verify in Task 6 Step 5 that merging produces a new `release.yml` run.
+- **GITHUB_TOKEN tag gotcha:** the auto-tag in `release-tag-on-merge.yml` MUST push with the dedicated GitHub App installation token, minted via `actions/create-github-app-token@v1` from `secrets.RELEASE_APP_ID`/`secrets.RELEASE_APP_PRIVATE_KEY` (Task 3 + Task 7). A tag pushed by the default `GITHUB_TOKEN` will NOT start `release.yml` — the whole chain silently stalls with a tag but no publish. Verify in Task 6 Step 5 that merging produces a new `release.yml` run.
 - Workflows triggered by `pull_request` (release-tag-on-merge) read the workflow file from the PR **base** (`main`) — so it must be merged to `main` (Task 6 Step 1) before it can fire.
 - `release-prep` creating the **draft** release must NOT create the git tag; Step 6.3 explicitly asserts this. If a tag appears, stop and fix (likely a `gh release create` flag).
 - The generate-notes API works for a not-yet-existing tag (`tag_name` + `target_commitish=main`). `previous_tag_name` omitted when no prior `v*` tag.
