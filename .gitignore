@@ -34,6 +34,9 @@ Cargo.lock.bak
 /lib/redact_ner/*.bundle
 /tmp/
 
+# Git worktrees
+/.worktrees/
+
 # Editor / OS
 .DS_Store
 *.swp
