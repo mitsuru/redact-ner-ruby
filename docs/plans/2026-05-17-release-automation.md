@@ -119,6 +119,10 @@ permissions:
 
 jobs:
   prep:
+    # Only cut releases from main. workflow_dispatch lets the operator pick any
+    # branch; without this guard, dispatching from a feature branch would open
+    # a Release PR containing that branch's divergence.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -157,10 +161,14 @@ jobs:
           [ -n "$prev" ] && args+=(-f previous_tag_name="$prev")
           body=$(gh api repos/${{ github.repository }}/releases/generate-notes "${args[@]}" --jq .body)
           [ -z "$body" ] && body="No notable changes."
+          # Random delimiter: generated notes ingest arbitrary commit/PR text;
+          # a fixed delimiter could collide with a notes line and silently
+          # truncate the value.
+          delim="RELNOTES_$(openssl rand -hex 16)"
           {
-            echo 'body<<RELNOTES'
+            echo "body<<$delim"
             echo "$body"
-            echo 'RELNOTES'
+            echo "$delim"
           } >> "$GITHUB_OUTPUT"
 
       - name: Bump version.rb
@@ -184,8 +192,9 @@ jobs:
           # Block form: replacement string must NOT interpret \1/\& from notes.
           c = c.sub(/## \[Unreleased\]\n/) { |m| "#{m}\n#{section}\n" }
           # Bottom link refs.
+          before = c.dup
           c = c.sub(%r{^\[Unreleased\]:.*$}, "[Unreleased]: https://github.com/#{repo}/compare/v#{ver}...HEAD")
-          c = c.sub(/^(\[#{Regexp.escape(ver)}\]:.*\n)?\z/, "")  # no-op safety
+          abort "CHANGELOG missing [Unreleased]: link ref" if c == before
           unless c.include?("\n[#{ver}]: ")
             c = c.rstrip + "\n[#{ver}]: https://github.com/#{repo}/releases/tag/v#{ver}\n"
           end
@@ -193,6 +202,7 @@ jobs:
           RUBY
           grep -q "## \[${{ steps.ver.outputs.next }}\] - ${{ steps.ver.outputs.date }}" CHANGELOG.md
           grep -q "^\[${{ steps.ver.outputs.next }}\]: " CHANGELOG.md
+          grep -q "^\[Unreleased\]: .*/compare/v${{ steps.ver.outputs.next }}\.\.\.HEAD" CHANGELOG.md
 
       - name: Create branch, commit, open Release PR
         env:
