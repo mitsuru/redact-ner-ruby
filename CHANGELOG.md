@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-17
+
+## What's Changed
+* Automate release prep: version bump, CHANGELOG, draft GitHub Release by @mitsuru in https://github.com/mitsuru/redact-ner-ruby/pull/1
+* Use a GitHub App token instead of RELEASE_PAT for release automation by @mitsuru in https://github.com/mitsuru/redact-ner-ruby/pull/2
+
+## New Contributors
+* @mitsuru made their first contribution in https://github.com/mitsuru/redact-ner-ruby/pull/1
+
+**Full Changelog**: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.1...v0.1.2
+
+
 ## [0.1.1] - 2026-05-17
 
 ### Changed
@@ -40,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The precompiled musl gems (Alpine / distroless) link `libstdc++`
     dynamically; install it at runtime, e.g. `apk add --no-cache libstdc++`.
 
-[Unreleased]: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.2...HEAD
 [0.1.1]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.0
+[0.1.2]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.2
