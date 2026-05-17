@@ -113,5 +113,34 @@ jobs:
               gem install ./*.gem &&
               ruby -e '\''require "redact_ner"; raise "load failed" unless RedactNer::Recognizer.respond_to?(:from_file); puts "ok #{RedactNer::VERSION}"'\'''
 
-  # publish: intentionally NOT defined yet. Added in Task 6 after CI is green
-  # and the RubyGems pending Trusted Publisher + GitHub Environment exist.
+  publish:
+    needs: [cross-gem, source-gem, smoke-native, smoke-emulated]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Configure RubyGems Trusted Publishing (OIDC)
+        uses: rubygems/configure-rubygems-credentials@v1
+      - name: Push all gems
+        run: |
+          shopt -s nullglob
+          for g in dist/*.gem; do
+            echo "Pushing $g"
+            gem push "$g"
+          done
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.gem
+          generate_release_notes: true
