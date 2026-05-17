@@ -27,7 +27,7 @@
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 ```
-Bot committer identity (run after checkout, before any commit/tag), using the App token:
+Bot committer identity — place this step **immediately after `actions/checkout` (before `Compute next version` / any `git commit`/`git tag`)**, using the App token:
 ```yaml
       - name: Configure git identity as the App bot
         env:
@@ -163,7 +163,13 @@ short-lived token from a dedicated GitHub App instead.
    - `RELEASE_APP_ID` = the App ID
    - `RELEASE_APP_PRIVATE_KEY` = the full `.pem` contents
 
-Confirm both secrets exist before merging any Release PR.
+5. After install, confirm the App's bot user resolves (the workflows derive
+   the committer email from it): `gh api "/users/<app-slug>[bot]" --jq .id`
+   should return a numeric id. The `<app-slug>` is the App's URL slug
+   (lowercased name). If it 404s, wait a minute post-install and retry.
+
+Confirm both secrets exist (and the bot-user check passes) before merging any
+Release PR.
 ```
 Also remove/replace any other `RELEASE_PAT` mentions in that plan (e.g. Task 3 notes, the executor notes, Task 6 Step 5) so they refer to the App token / the new secrets. Keep the GITHUB_TOKEN-tag-trigger rationale (still true), just attribute the fix to the App token.
 
@@ -221,6 +227,7 @@ No commit (verification only).
 
 - **actionlint is the gate, not Ruby YAML.** A prior `${{ }}`-in-a-run-comment shipped a workflow startup_failure that `ruby -ryaml` accepted. Run `./actionlint -shellcheck= .github/workflows/*.yml` after every workflow edit and never write a literal `${{` `}}` inside a `run:` comment.
 - The App-token mechanism only works once the user creates the App + secrets (Task 7, manual). `create-github-app-token` fails the job loudly if `RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY` are missing/invalid — this is the intended inherent fail-fast (no manual guard needed).
+- **Fork-PR / secrets note (audit clarity):** `release-tag-on-merge.yml` triggers on `pull_request: [closed]`. Fork-originated `pull_request` events receive empty secrets, which would make `create-github-app-token` fail. This is NOT a real path here: Release PRs are always internal (`release/v*` head, `release` label, base `main`), and the job-level `if:` gates the ENTIRE job — including the `create-github-app-token` step — so a fork PR lacking the label/branch is skipped before any secret is read. No extra guard needed; documented so a future auditor doesn't mistake this for an unhandled case.
 - `actions/create-github-app-token@v1` outputs `token` and `app-slug`. The bot user id for the noreply email comes from `gh api "/users/${APP_SLUG}[bot]" --jq .id` (public endpoint; the App token can read it).
 - Post-merge dry-run / end-to-end (dispatch Release Prep `bump=patch` → Release PR + draft Release, no publish/tag; then merge → App-token tag push → `release.yml` fires) is operational verification done after this branch merges and the App exists — track on issue `redact-ner-ruby-a2c`, do not attempt before the App secrets are set.
 - Commit with explicit pathspecs; the beads hook touches `.beads/issues.jsonl` — keep it out of commits.
