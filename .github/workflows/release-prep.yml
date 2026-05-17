@@ -87,7 +87,10 @@ jobs:
         run: |
           sed -i 's/VERSION = ".*"/VERSION = "${{ steps.ver.outputs.next }}"/' lib/redact_ner/version.rb
           ruby -r ./lib/redact_ner/version -e 'abort "bump failed" unless RedactNer::VERSION == "${{ steps.ver.outputs.next }}"'
-          bundle lock
+          # --conservative: re-resolve only what must change, so the Release PR
+          # carries a version-only Gemfile.lock diff and never a stealth
+          # dependency upgrade.
+          bundle lock --conservative
 
       - name: Roll CHANGELOG
         env:
