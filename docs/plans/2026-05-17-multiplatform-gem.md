@@ -340,31 +340,56 @@ git commit -m "Add release workflow (cross-build + full smoke, publishing disabl
 
 ---
 
-## Task 5: Prove the workflow green via workflow_dispatch
+## Task 5: Prove the workflow green (temporary push trigger)
 
-**Files:** none (CI verification)
+**GitHub constraint:** `workflow_dispatch` can only be triggered via API/`gh`
+when the workflow file exists on the **default branch**. `release.yml` is only
+on the feature branch, so `gh workflow run release.yml` returns
+`HTTP 404: workflow release.yml not found on the default branch`. Workaround:
+add a **temporary** `push` trigger scoped to the feature branch (push/tag/PR
+triggers fire from the branch the file lives on; only `workflow_dispatch` /
+`schedule` need the default branch). This temporary trigger MUST be removed
+before Task 6 — see Step 5 (hard completion condition).
 
-**Step 1: Push the branch**
+**Files:** `.github/workflows/release.yml` (temporary trigger add, then remove)
 
-Run: `git push -u origin HEAD 2>&1 | tail -2`
-Expected: branch pushed.
+**Step 1: Add a temporary branch push trigger**
 
-**Step 2: Trigger the workflow manually**
+In `.github/workflows/release.yml`, change the `on:` block to also include:
 
-Run: `gh workflow run release.yml --ref "$(git branch --show-current)" 2>&1 | tail -1`
-Expected: workflow run queued.
+```yaml
+on:
+  push:
+    tags: ["v*"]
+    branches: ["feature/multiplatform-gem"]   # TEMPORARY — remove in Step 5
+  workflow_dispatch:
+```
+
+Commit: `git add .github/workflows/release.yml && git commit -m "TEMP: trigger release.yml on feature branch for CI validation"`
+
+**Step 2: Push to trigger the run**
+
+Run: `git push 2>&1 | tail -2` (branch already tracks origin)
+Expected: push succeeds; the push event starts a `release.yml` run.
 
 **Step 3: Watch the run to completion**
 
 Run: `gh run watch "$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status 2>&1 | tail -25`
-Expected: all `cross-gem` (7), `source-gem`, `smoke-native` (4), and `smoke-emulated` (3) jobs succeed. If a vendored-OpenSSL cross-build fails for a target, debug per superpowers:systematic-debugging before proceeding (do not weaken the smoke gate to go green).
+Expected: all `cross-gem` (7), `source-gem`, `smoke-native` (4), and `smoke-emulated` (3) jobs succeed. Wall time ~30–60 min. If a vendored-OpenSSL cross-build fails for a non-x86_64-linux target (only x86_64-linux was validated locally in Task 3), debug per superpowers:systematic-debugging and iterate (commit fix → push → re-watch). Do NOT weaken the smoke gate to go green.
 
 **Step 4: Confirm artifacts uploaded**
 
 Run: `gh run view "$(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')" --json jobs -q '[.jobs[].name]'`
 Expected: 7 cross jobs + source-gem + 4 smoke-native + 3 smoke-emulated, all listed.
 
-No commit (CI verification only).
+**Step 5: Remove the temporary trigger (HARD completion condition)**
+
+Revert the `on:` block to ONLY `push: tags: ["v*"]` + `workflow_dispatch`
+(remove the `branches:` line). Commit:
+`git commit -am "Revert temporary feature-branch CI trigger"` and `git push`.
+Task 5 is NOT complete until `release.yml` on the feature branch no longer
+contains the temporary `branches:` trigger. This prevents the workflow from
+re-running on every feature-branch push after the branch merges to main.
 
 ---
 
