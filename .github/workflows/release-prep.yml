@@ -87,6 +87,7 @@ jobs:
         run: |
           sed -i 's/VERSION = ".*"/VERSION = "${{ steps.ver.outputs.next }}"/' lib/redact_ner/version.rb
           ruby -r ./lib/redact_ner/version -e 'abort "bump failed" unless RedactNer::VERSION == "${{ steps.ver.outputs.next }}"'
+          bundle lock
 
       - name: Roll CHANGELOG
         env:
@@ -122,7 +123,7 @@ jobs:
         run: |
           tag="${{ steps.ver.outputs.tag }}"
           git switch -c "release/$tag"
-          git add lib/redact_ner/version.rb CHANGELOG.md
+          git add lib/redact_ner/version.rb CHANGELOG.md Gemfile.lock
           git commit -m "Release $tag"
           git push -u origin "release/$tag"
           gh pr create --base main --head "release/$tag" \
