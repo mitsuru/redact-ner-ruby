@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    redact_ner (0.1.0)
+    redact_ner (0.1.1)
       rb_sys (~> 0.9)
 
 GEM

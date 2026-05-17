@@ -144,5 +144,9 @@ For maintainers — to cut a new release:
 
 ## License
 
-Distributed under the Business Source License 1.1, inheriting from the
-upstream `redact-ner` crate. See [LICENSE](LICENSE) for details.
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. The upstream `redact-ner` crate is Apache-2.0.

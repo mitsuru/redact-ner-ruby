@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
     for PII detection using quantized ONNX models through the ONNX Runtime.
   DESC
   spec.homepage = "https://github.com/mitsuru/redact-ner-ruby"
-  spec.license = "BUSL-1.1"
+  spec.licenses = ["MIT", "Apache-2.0"]
   # Lower bound matches the dev-time onnxruntime gem. Upper bound is required
   # for ABI-fixed precompiled gems; raise it as new Ruby ABIs are supported.
   # 4.0 is allowed here so 4.0 users can still install via the source gem
@@ -34,7 +34,8 @@ Gem::Specification.new do |spec|
     "ext/**/*.{rs,toml,lock,rb}",
     "Cargo.toml",
     "Cargo.lock",
-    "LICENSE",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
     "README.md",
     "CHANGELOG.md"
   ]

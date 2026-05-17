@@ -3,7 +3,7 @@ name = "redact_ner"
 version = "0.1.0"
 edition = "2021"
 publish = false
-license = "BUSL-1.1"
+license = "MIT OR Apache-2.0"
 
 [lib]
 crate-type = ["cdylib"]

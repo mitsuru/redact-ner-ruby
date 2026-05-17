@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-17
+
+### Changed
+
+- Relicensed from BUSL-1.1 to dual **MIT OR Apache-2.0**. The BUSL-1.1 in
+  0.1.0 was an unintended leftover; 0.1.0 is superseded and yanked.
+
 ## [0.1.0] - 2026-05-17
 
 ### Added
@@ -33,5 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The precompiled musl gems (Alpine / distroless) link `libstdc++`
     dynamically; install it at runtime, e.g. `apk add --no-cache libstdc++`.
 
-[Unreleased]: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.0
