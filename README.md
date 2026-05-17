@@ -120,27 +120,21 @@ bin/rake test
 
 ## Releasing
 
-For maintainers — to cut a new release:
+Releases are automated. To cut a release:
 
-1. Update `lib/redact_ner/version.rb` and `CHANGELOG.md`. Commit.
-2. Tag the release: `git tag v$(ruby -Ilib -rredact_ner/version -e 'puts RedactNer::VERSION')`
-3. Push: `git push && git push --tags`
-4. Build and ship the gem:
+1. Run the **Release Prep** workflow (Actions → Release Prep → Run workflow),
+   choosing the `bump` level (`patch`/`minor`/`major`). It bumps
+   `lib/redact_ner/version.rb`, rolls `CHANGELOG.md` from GitHub-generated
+   notes, opens a **Release PR**, and creates a **draft GitHub Release**.
+2. Review/edit the Release PR (and the draft Release notes) and **merge** it.
+   Merging auto-creates and pushes the `vX.Y.Z` tag.
+3. The tag triggers the **Release** workflow: it builds the 5 precompiled
+   gems + source gem, then the `publish` job waits for approval on the
+   `rubygems` GitHub Environment. Approve it to publish to RubyGems and
+   un-draft the GitHub Release with the gem assets attached.
 
-   ```sh
-   bin/rake build              # produces pkg/redact_ner-X.Y.Z.gem
-   gem push pkg/redact_ner-*.gem
-   ```
-
-   The first `gem push` requires a rubygems.org API key (or an OIDC
-   trusted-publisher setup). Two-factor MFA is required by this gem's
-   `rubygems_mfa_required` metadata.
-
-> **Note**: this currently ships a "source" gem only. End users compile
-> the Rust extension on `gem install`. Cross-compiled precompiled gems
-> (per platform) can be added later via
-> [`rb-sys-dock`](https://github.com/oxidize-rb/rb-sys/tree/main/cargo-binstall-rb-sys-dock)
-> and `rake-compiler-dock`.
+To abort before publishing, close the Release PR without merging and delete
+the `release/vX.Y.Z` branch and the draft Release.
 
 ## License
 
