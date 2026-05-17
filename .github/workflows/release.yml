@@ -131,7 +131,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Configure RubyGems Trusted Publishing (OIDC)
-        uses: rubygems/configure-rubygems-credentials@v1
+        uses: rubygems/configure-rubygems-credentials@v2.0.0
       - name: Push all gems
         run: |
           shopt -s nullglob
