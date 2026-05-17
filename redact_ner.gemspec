@@ -15,8 +15,11 @@ Gem::Specification.new do |spec|
   DESC
   spec.homepage = "https://github.com/mitsuru/redact-ner-ruby"
   spec.license = "BUSL-1.1"
-  # Bumped to 3.2 to match the dev-time `onnxruntime` gem (>= 3.2).
-  spec.required_ruby_version = ">= 3.2.0"
+  # Lower bound matches the dev-time onnxruntime gem. Upper bound is required
+  # for ABI-fixed precompiled gems; raise it as new Ruby ABIs are supported.
+  # 4.0 is allowed here so 4.0 users can still install via the source gem
+  # until precompiled 4.0 binaries ship post-GA.
+  spec.required_ruby_version = [">= 3.2.0", "< 4.1"]
   spec.required_rubygems_version = ">= 3.3.11"
 
   spec.metadata["homepage_uri"]       = spec.homepage
