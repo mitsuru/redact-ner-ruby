@@ -13,7 +13,8 @@ as fallback for uncovered platforms / future Ruby versions.
 
 ### Distribution artifacts (8 gems total)
 
-Precompiled platform gems (each fat-packs Ruby 3.2 / 3.3 / 3.4 / 4.0 `.so`):
+Precompiled platform gems (each fat-packs Ruby 3.2 / 3.3 / 3.4 `.so`; Ruby 4.0
+is excluded from precompiled gems for 0.1.0 — see "Ruby 4.0" below):
 
 - `x86_64-linux`
 - `aarch64-linux`
@@ -93,22 +94,34 @@ New `.github/workflows/release.yml`; keep existing `ci.yml` (tests) unchanged.
 - Trigger: `push: tags: ['v*']` + `workflow_dispatch`.
 - Jobs:
   1. `cross-gem` (matrix, 7 platforms in parallel) — `oxidize-rb/actions/cross-gem@v1`,
-     `ruby-versions: "3.2,3.3,3.4,4.0"`, builds via `rb-sys-dock` with vendored
+     `ruby-versions: "3.2,3.3,3.4"`, builds via `rb-sys-dock` with vendored
      OpenSSL; uploads `.gem` artifacts.
   2. `source-gem` — `gem build redact_ner.gemspec`; uploads artifact.
-  3. `release` (needs all above) — download all artifacts, **RubyGems Trusted
-     Publishing** via OIDC (`rubygems/release-gem@v1` or `gem push` with OIDC
-     token), `permissions: id-token: write`, push all 8 gems, create a GitHub
-     Release with `.gem` assets and CHANGELOG excerpt.
-- Ruby 4.0: protect matrix with `continue-on-error` for the 4.0 leg if
-  cross-gem toolchain support is incomplete; release other versions first.
+  3. `smoke-native` + `smoke-emulated` — full 7-platform load gate (see
+     Verification).
+  4. `publish` (needs all above) — download all artifacts, **RubyGems Trusted
+     Publishing** via OIDC (`rubygems/configure-rubygems-credentials` + `gem
+     push`), `permissions: id-token: write`, behind a protected GitHub
+     Environment `rubygems`, push all 8 gems, create a GitHub Release with
+     `.gem` assets and generated notes.
 
-### User prerequisite (cannot be done in code)
+### Ruby 4.0
 
-Register a RubyGems Trusted Publisher for gem `redact_ner` bound to repo
-`mitsuru/redact-ner-ruby` and workflow `release.yml`. Because the gem is not yet
-published, the **first time requires a "pending trusted publisher"
-registration** (reserves the gem name + binds the repo/workflow).
+Excluded from precompiled gems for 0.1.0. `oxidize-rb/actions/cross-gem`'s
+`ruby-versions` is a single comma-joined list per job with no per-ABI failure
+isolation, and 4.0 is not yet GA. 4.0 users install via the source gem
+(`required_ruby_version` keeps `< 4.1`). Precompiled 4.0 is a tracked
+post-GA follow-up.
+
+### User prerequisites (cannot be done in code)
+
+1. **Create a GitHub Environment** named exactly `rubygems` (repo Settings →
+   Environments), optionally with a required reviewer as a publish-approval
+   gate. No secrets needed (OIDC is keyless).
+2. **Register a RubyGems pending Trusted Publisher** for gem `redact_ner` bound
+   to repo `mitsuru/redact-ner-ruby`, workflow `release.yml`, environment
+   `rubygems` (must byte-match the GitHub Environment). Because the gem is not
+   yet published, this **pending** registration also reserves the gem name.
 
 ## Verification strategy
 
@@ -137,8 +150,8 @@ path covered by load smoke test only; no duplication.
 3. Local `rb-sys-dock` cross-build of one platform (e.g. `x86_64-linux`).
 4. Add `release.yml` with publish step disabled (artifact build only).
 5. `workflow_dispatch` run: all 7 platforms + source build & load smoke green.
-6. User registers pending Trusted Publisher (reserve `redact_ner` + bind
-   repo/workflow).
+6. User creates GitHub Environment `rubygems` and registers the pending
+   Trusted Publisher (reserve `redact_ner` + bind repo/workflow/environment).
 7. Enable publish step in `release.yml`.
 8. Append multi-platform note to CHANGELOG; re-create `v0.1.0` tag and push →
    workflow auto-publishes all gems.
@@ -153,6 +166,7 @@ bump since unpublished).
 | Risk | Mitigation |
 |---|---|
 | Vendored OpenSSL fails to build for a cross target | rb-sys-dock per-target C toolchain; verify early in step 3 |
-| Ruby 4.0 unsupported by cross-gem | `continue-on-error` for 4.0 leg; release other versions first |
+| Ruby 4.0 not GA / no per-ABI isolation in cross-gem | Exclude 4.0 from precompiled 0.1.0; 4.0 served by source gem; precompiled 4.0 is a post-GA follow-up |
 | First publish fails: Trusted Publisher unregistered | Pending-publisher registration is an explicit prerequisite (step 6) before enabling publish |
-| musl build divergence | Include all 4 musl targets in mandatory smoke-test gate |
+| Environment name mismatch (workflow / GitHub Env / RubyGems) blocks or fails publish | Single canonical name `rubygems`; byte-identical in all three; created as an explicit prerequisite |
+| musl / aarch64 build divergence | Smoke gate includes both musl targets and both aarch64 targets (QEMU) before publish |
