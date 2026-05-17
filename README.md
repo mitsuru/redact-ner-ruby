@@ -28,6 +28,14 @@ bin/rake compile   # or: bundle exec rake compile
 > rake`. Running plain `rake` will fail because the globally installed rake
 > conflicts with the bundle-locked version.
 
+### Precompiled musl gems (Alpine / distroless)
+
+The precompiled `x86_64-linux-musl` and `aarch64-linux-musl` gems link the C++
+runtime `libstdc++` dynamically, so it must be present at load time. Bare
+Alpine/distroless images do not ship it — install it first, e.g. `apk add
+--no-cache libstdc++` on Alpine. glibc images (e.g. Debian slim) already
+include it.
+
 ### ONNX Runtime
 
 `redact-ner` uses the `ort` crate with the `load-dynamic` feature, which means

@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Examples: basic usage, fail-loud availability check, integration with
   the [`onnxruntime`](https://github.com/ankane/onnxruntime-ruby) gem,
   and an email regex merge demonstration.
+- Precompiled native gems (Ruby 3.2–3.4) for `x86_64-linux`, `aarch64-linux`,
+  `x86_64-linux-musl`, `aarch64-linux-musl`, and `x64-mingw-ucrt`, so these
+  platforms install without a Rust toolchain. Built and published via GitHub
+  Actions (`oxidize-rb/actions/cross-gem` + RubyGems Trusted Publishing).
+  - macOS (`*-darwin`), Ruby 4.0, and any other platform install from the
+    source gem, which compiles the Rust extension (needs a Rust toolchain;
+    macOS also needs the Xcode command-line tools).
+  - The precompiled musl gems (Alpine / distroless) link `libstdc++`
+    dynamically; install it at runtime, e.g. `apk add --no-cache libstdc++`.
 
 [Unreleased]: https://github.com/mitsuru/redact-ner-ruby/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mitsuru/redact-ner-ruby/releases/tag/v0.1.0

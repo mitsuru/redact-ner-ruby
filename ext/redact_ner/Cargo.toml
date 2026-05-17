@@ -12,3 +12,8 @@ crate-type = ["cdylib"]
 magnus = "0.8"
 redact-ner = "0.8.3"
 redact-core = "0.8.3"
+
+# Force a vendored, statically-linked OpenSSL so cross-compilation does not
+# depend on a per-target system OpenSSL. openssl-sys is pulled transitively
+# via ort -> ort-sys -> ureq -> native-tls; we only pin its build mode here.
+openssl-sys = { version = "0.9", features = ["vendored"] }
