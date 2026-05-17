@@ -1,0 +1,123 @@
+name: Release Prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump level"
+        required: true
+        type: choice
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+
+      - name: Compute next version
+        id: ver
+        run: |
+          cur=$(ruby -r ./lib/redact_ner/version -e 'print RedactNer::VERSION')
+          next=$(ruby script/next_version.rb "$cur" "${{ inputs.bump }}")
+          echo "cur=$cur"   >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "tag=v$next"  >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Guard against duplicate cut
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then echo "tag $tag exists"; exit 1; fi
+          if git ls-remote --exit-code --heads origin "release/$tag" >/dev/null 2>&1; then echo "branch release/$tag exists"; exit 1; fi
+          if gh release view "$tag" >/dev/null 2>&1; then echo "release $tag exists"; exit 1; fi
+
+      - name: Generate release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prev=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          args=(-f tag_name="${{ steps.ver.outputs.tag }}" -f target_commitish=main)
+          [ -n "$prev" ] && args+=(-f previous_tag_name="$prev")
+          body=$(gh api repos/${{ github.repository }}/releases/generate-notes "${args[@]}" --jq .body)
+          [ -z "$body" ] && body="No notable changes."
+          {
+            echo 'body<<RELNOTES'
+            echo "$body"
+            echo 'RELNOTES'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump version.rb
+        run: |
+          sed -i 's/VERSION = ".*"/VERSION = "${{ steps.ver.outputs.next }}"/' lib/redact_ner/version.rb
+          ruby -r ./lib/redact_ner/version -e 'abort "bump failed" unless RedactNer::VERSION == "${{ steps.ver.outputs.next }}"'
+
+      - name: Roll CHANGELOG
+        env:
+          NOTES: ${{ steps.notes.outputs.body }}
+          NEXT: ${{ steps.ver.outputs.next }}
+          DATE: ${{ steps.ver.outputs.date }}
+          REPO: ${{ github.repository }}
+        run: |
+          ruby - <<'RUBY'
+          path = "CHANGELOG.md"
+          c = File.read(path)
+          notes = ENV["NOTES"]; ver = ENV["NEXT"]; date = ENV["DATE"]; repo = ENV["REPO"]
+          section = "## [#{ver}] - #{date}\n\n#{notes}\n"
+          # Insert the new section after "## [Unreleased]" (keep Unreleased empty).
+          # Block form: replacement string must NOT interpret \1/\& from notes.
+          c = c.sub(/## \[Unreleased\]\n/) { |m| "#{m}\n#{section}\n" }
+          # Bottom link refs.
+          c = c.sub(%r{^\[Unreleased\]:.*$}, "[Unreleased]: https://github.com/#{repo}/compare/v#{ver}...HEAD")
+          c = c.sub(/^(\[#{Regexp.escape(ver)}\]:.*\n)?\z/, "")  # no-op safety
+          unless c.include?("\n[#{ver}]: ")
+            c = c.rstrip + "\n[#{ver}]: https://github.com/#{repo}/releases/tag/v#{ver}\n"
+          end
+          File.write(path, c)
+          RUBY
+          grep -q "## \[${{ steps.ver.outputs.next }}\] - ${{ steps.ver.outputs.date }}" CHANGELOG.md
+          grep -q "^\[${{ steps.ver.outputs.next }}\]: " CHANGELOG.md
+
+      - name: Create branch, commit, open Release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "release/$tag"
+          git add lib/redact_ner/version.rb CHANGELOG.md
+          git commit -m "Release $tag"
+          git push -u origin "release/$tag"
+          gh label create release --color FBCA04 --description "Release PR" 2>/dev/null || true
+          gh pr create --base main --head "release/$tag" --label release \
+            --title "Release $tag" \
+            --body "Automated release prep for **$tag**. Review the version bump, CHANGELOG, and the draft GitHub Release notes. Merging this PR auto-tags \`$tag\` and triggers publish."
+
+      - name: Create draft GitHub Release (no tag yet)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ steps.notes.outputs.body }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          # NOTES via env (NOT ${{ }} in the script) — generated notes can
+          # contain quotes/backticks/$ that would break shell interpolation.
+          printf '%s\n' "$NOTES" > /tmp/notes.md
+          gh release create "$TAG" --draft --target main --title "$TAG" --notes-file /tmp/notes.md
+          tag="$TAG"
+          # A draft release must NOT create the git tag.
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "ERROR: draft release created the tag prematurely"; exit 1
+          fi
