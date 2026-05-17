@@ -18,8 +18,6 @@ jobs:
           - aarch64-linux
           - x86_64-linux-musl
           - aarch64-linux-musl
-          - x86_64-darwin
-          - arm64-darwin
           - x64-mingw-ucrt
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +44,9 @@ jobs:
           ruby-version: "3.4"
           rustup-toolchain: stable
           bundler-cache: true
-      - run: gem build redact_ner.gemspec -o pkg/redact_ner-source.gem
+      # `pkg/` is gitignored and absent on a fresh checkout; `gem build -o`
+      # does not create the parent dir, so create it first.
+      - run: mkdir -p pkg && gem build redact_ner.gemspec -o pkg/redact_ner-source.gem
       - uses: actions/upload-artifact@v4
         with:
           name: source-gem
@@ -63,10 +63,6 @@ jobs:
         include:
           - platform: x86_64-linux
             os: ubuntu-latest
-          - platform: x86_64-darwin
-            os: macos-13
-          - platform: arm64-darwin
-            os: macos-14
           - platform: x64-mingw-ucrt
             os: windows-latest
     runs-on: ${{ matrix.os }}
