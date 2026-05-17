@@ -125,8 +125,7 @@ jobs:
           git add lib/redact_ner/version.rb CHANGELOG.md
           git commit -m "Release $tag"
           git push -u origin "release/$tag"
-          gh label create release --color FBCA04 --description "Release PR" 2>/dev/null || true
-          gh pr create --base main --head "release/$tag" --label release \
+          gh pr create --base main --head "release/$tag" \
             --title "Release $tag" \
             --body "Automated release prep for **$tag**. Review the version bump, CHANGELOG, and the draft GitHub Release notes. Merging this PR auto-tags \`$tag\` and triggers publish."
 
