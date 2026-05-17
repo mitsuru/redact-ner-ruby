@@ -139,7 +139,7 @@ jobs:
             echo "Pushing $g"
             if ! out=$(gem push "$g" 2>&1); then
               echo "$out"
-              echo "$out" | grep -q "has already been pushed" || exit 1
+              echo "$out" | grep -qE "has already been pushed|Repushing of gem versions is not allowed" || exit 1
               echo "Already pushed, skipping: $g"
             fi
           done
