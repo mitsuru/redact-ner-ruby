@@ -16,6 +16,12 @@
 **/*.rs.bk
 Cargo.lock.bak
 
+# Built gem packages
+*.gem
+
+# Downloaded ONNX Runtime archive (fetch via README instructions)
+/onnxruntime-*.tgz
+
 # Compiled native extension
 *.so
 *.dylib
