@@ -1450,6 +1450,7 @@ version = "0.1.0"
 dependencies = [
  "magnus",
  "openssl-sys",
+ "rb-sys",
  "redact-core",
  "redact-ner",
 ]
