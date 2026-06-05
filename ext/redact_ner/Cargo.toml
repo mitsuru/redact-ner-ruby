@@ -13,6 +13,12 @@ magnus = "0.8"
 redact-ner = "0.8.3"
 redact-core = "0.8.3"
 
+# Direct access to rb_thread_call_without_gvl so analyze() can release the GVL
+# during ONNX inference. magnus 0.8 exposes no without_gvl wrapper. rb-sys is
+# already pulled in transitively by magnus; default-features = false keeps
+# Cargo's resolved feature set identical to magnus's (no ABI drift).
+rb-sys = { version = ">=0.9.113", default-features = false }
+
 # Force a vendored, statically-linked OpenSSL so cross-compilation does not
 # depend on a per-target system OpenSSL. openssl-sys is pulled transitively
 # via ort -> ort-sys -> ureq -> native-tls; we only pin its build mode here.
