@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "f470e80f249ea5d8663e9d53324cc1fbe498ea54"
+  },
+  "path_in_vcs": "crates/redact-ner"
+}

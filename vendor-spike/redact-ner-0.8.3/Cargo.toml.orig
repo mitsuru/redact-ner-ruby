@@ -1,0 +1,33 @@
+[package]
+name = "redact-ner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+documentation = "https://docs.rs/redact-ner"
+description = "Named Entity Recognition for PII detection using ONNX Runtime"
+
+[dependencies]
+redact-core = { path = "../redact-core", version = "0.8.3" }
+ort = { workspace = true }
+ndarray = { workspace = true }
+tokenizers = "0.22"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = "3"
+
+[lib]
+name = "redact_ner"
+path = "src/lib.rs"

@@ -1,3 +1,8 @@
 [workspace]
 members = ["ext/redact_ner"]
 resolver = "2"
+
+# SPIKE ONLY (redact-ner-ruby-8w8): patch redact-ner to drop ort default-features
+# so download-binaries/tls-native (=> openssl chain) are removed. Revert after spike.
+[patch.crates-io]
+redact-ner = { path = "vendor-spike/redact-ner-0.8.3" }
